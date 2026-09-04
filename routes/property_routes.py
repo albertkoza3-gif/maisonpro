@@ -1,3 +1,4 @@
+```python
 import os
 import uuid
 
@@ -14,10 +15,6 @@ property_bp = Blueprint(
     url_prefix="/api/properties"
 )
 
-
-# =========================================================
-# VALEURS AUTORISÉES
-# =========================================================
 
 VALID_PROPERTY_TYPES = {
     "maison",
@@ -38,26 +35,14 @@ VALID_TRANSACTION_TYPES = {
 
 
 # =========================================================
-# URL DE BASE
+# UTILITAIRES
 # =========================================================
 
 def _get_base_url():
     return request.host_url.rstrip("/")
 
 
-# =========================================================
-# NORMALISER UN NUMÉRO POUR WHATSAPP
-# =========================================================
-
 def _get_whatsapp_url(phone):
-    """
-    Transforme le numéro du propriétaire en URL WhatsApp.
-
-    Exemples :
-    0700000000  -> https://wa.me/2250700000000
-    +2250700000000 -> https://wa.me/2250700000000
-    """
-
     if not phone:
         return ""
 
@@ -73,70 +58,172 @@ def _get_whatsapp_url(phone):
 
     if phone.startswith("+"):
         phone = phone[1:]
-
     elif phone.startswith("00"):
         phone = phone[2:]
-
     elif phone.startswith("0"):
         phone = "225" + phone[1:]
 
     return f"https://wa.me/{phone}"
 
 
+def _build_image_url(filename):
+    if not filename:
+        return ""
+
+    base_url = _get_base_url()
+
+    if str(filename).startswith("http://"):
+        return filename
+
+    if str(filename).startswith("https://"):
+        return filename
+
+    return f"{base_url}/uploads/{filename}"
+
+
 # =========================================================
-# SAUVEGARDER LES PHOTOS
+# ENREGISTREMENT DES PHOTOS
 # =========================================================
 
 def _save_uploaded_photos(files, property_id):
 
     saved = []
 
+    upload_folder = current_app.config["UPLOAD_FOLDER"]
+
+    os.makedirs(upload_folder, exist_ok=True)
+
+    print("")
+    print("========================================")
+    print("MAISONPRO - TRAITEMENT DES PHOTOS")
+    print("Dossier :", upload_folder)
+    print("Nombre de fichiers reçus :", len(files))
+    print("========================================")
+
     for file in files:
 
-        if not file:
+        if file is None:
+            print("Fichier ignoré : fichier vide")
             continue
 
-        if not file.filename:
+        filename = (file.filename or "").strip()
+
+        if not filename:
+            print("Fichier ignoré : nom vide")
             continue
+
+        print("")
+        print("PHOTO REÇUE :", filename)
+
+        # -------------------------------------------------
+        # Vérifier l'extension
+        # -------------------------------------------------
 
         if not allowed_file(
-            file.filename,
+            filename,
             current_app.config["ALLOWED_EXTENSIONS"]
         ):
+            print("PHOTO REFUSÉE :", filename)
             continue
 
         extension = (
-            file.filename
+            filename
             .rsplit(".", 1)[1]
             .lower()
         )
+
+        # -------------------------------------------------
+        # Nom unique
+        # -------------------------------------------------
 
         unique_name = (
             f"{uuid.uuid4().hex}.{extension}"
         )
 
         filepath = os.path.join(
-            current_app.config["UPLOAD_FOLDER"],
+            upload_folder,
             unique_name
         )
 
-        file.save(filepath)
+        print("Nom final :", unique_name)
+        print("Chemin :", filepath)
 
-        image = PropertyImage(
-            property_id=property_id,
-            filename=unique_name
-        )
+        # -------------------------------------------------
+        # Sauvegarder physiquement le fichier
+        # -------------------------------------------------
 
-        db.session.add(image)
+        try:
 
-        saved.append(unique_name)
+            file.save(filepath)
+
+            # Vérifier que le fichier existe réellement
+            if not os.path.isfile(filepath):
+
+                print(
+                    "ERREUR : fichier non créé :",
+                    filepath
+                )
+
+                continue
+
+            file_size = os.path.getsize(filepath)
+
+            print(
+                "PHOTO ENREGISTRÉE :",
+                filepath
+            )
+
+            print(
+                "Taille :",
+                file_size,
+                "octets"
+            )
+
+            # -------------------------------------------------
+            # Créer l'entrée en base
+            # -------------------------------------------------
+
+            image = PropertyImage(
+                property_id=property_id,
+                filename=unique_name
+            )
+
+            db.session.add(image)
+
+            saved.append(unique_name)
+
+            print(
+                "IMAGE AJOUTÉE À LA BASE :",
+                unique_name
+            )
+
+        except Exception as e:
+
+            print(
+                "ERREUR ENREGISTREMENT PHOTO :",
+                repr(e)
+            )
+
+            # Si le fichier a été créé mais que la base
+            # échoue, essayer de supprimer le fichier.
+            try:
+
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+
+            except Exception:
+                pass
+
+    print("")
+    print("PHOTOS SAUVEGARDÉES :", saved)
+    print("========================================")
+    print("")
 
     return saved
 
 
 # =========================================================
 # LISTE DES ANNONCES
-# GET /api/properties
 # =========================================================
 
 @property_bp.route("", methods=["GET"])
@@ -145,10 +232,6 @@ def list_properties():
     query = Property.query.filter_by(
         is_active=True
     )
-
-    # -----------------------------------------------------
-    # FILTRES
-    # -----------------------------------------------------
 
     city = request.args.get("city")
     commune = request.args.get("commune")
@@ -179,10 +262,6 @@ def list_properties():
 
     search = request.args.get("search")
 
-    # -----------------------------------------------------
-    # APPLICATION DES FILTRES
-    # -----------------------------------------------------
-
     if city:
         query = query.filter(
             Property.city.ilike(f"%{city}%")
@@ -210,14 +289,12 @@ def list_properties():
 
     if transaction_type:
         query = query.filter(
-            Property.transaction_type ==
-            transaction_type
+            Property.transaction_type == transaction_type
         )
 
     if property_type:
         query = query.filter(
-            Property.property_type ==
-            property_type
+            Property.property_type == property_type
         )
 
     if bedrooms is not None:
@@ -239,17 +316,9 @@ def list_properties():
             )
         )
 
-    # -----------------------------------------------------
-    # TRI
-    # -----------------------------------------------------
-
     query = query.order_by(
         Property.created_at.desc()
     )
-
-    # -----------------------------------------------------
-    # PAGINATION
-    # -----------------------------------------------------
 
     page = request.args.get(
         "page",
@@ -263,9 +332,11 @@ def list_properties():
         type=int
     )
 
-    # Limite de sécurité
     if per_page > 100:
         per_page = 100
+
+    if per_page < 1:
+        per_page = 20
 
     pagination = query.paginate(
         page=page,
@@ -289,7 +360,6 @@ def list_properties():
 
 # =========================================================
 # ANNONCES RÉCENTES
-# GET /api/properties/recent
 # =========================================================
 
 @property_bp.route("/recent", methods=["GET"])
@@ -303,6 +373,9 @@ def recent_properties():
 
     if limit > 50:
         limit = 50
+
+    if limit < 1:
+        limit = 10
 
     props = (
         Property.query
@@ -322,7 +395,6 @@ def recent_properties():
 
 # =========================================================
 # ANNONCES POPULAIRES
-# GET /api/properties/popular
 # =========================================================
 
 @property_bp.route("/popular", methods=["GET"])
@@ -336,6 +408,9 @@ def popular_properties():
 
     if limit > 50:
         limit = 50
+
+    if limit < 1:
+        limit = 10
 
     props = (
         Property.query
@@ -357,7 +432,6 @@ def popular_properties():
 
 # =========================================================
 # MES ANNONCES
-# GET /api/properties/mine
 # =========================================================
 
 @property_bp.route("/mine", methods=["GET"])
@@ -385,7 +459,6 @@ def my_properties():
 
 # =========================================================
 # VOIR UNE ANNONCE
-# GET /api/properties/<property_id>
 # =========================================================
 
 @property_bp.route(
@@ -404,10 +477,6 @@ def get_property(property_id):
             "error": "Annonce introuvable."
         }), 404
 
-    # -----------------------------------------------------
-    # COMPTEUR DE VUES
-    # -----------------------------------------------------
-
     prop.views_count = (
         prop.views_count or 0
     ) + 1
@@ -423,28 +492,17 @@ def get_property(property_id):
 
 # =========================================================
 # CRÉER UNE ANNONCE
-# POST /api/properties
 # =========================================================
 
 @property_bp.route("", methods=["POST"])
 @token_required
 def create_property():
 
-    """
-    Création d'une annonce.
-
-    IMPORTANT :
-    Le téléphone n'est PLUS demandé dans le formulaire.
-
-    Le numéro est automatiquement récupéré depuis :
-        g.current_user.phone
-    """
+    # IMPORTANT :
+    # Avec multipart/form-data, les champs sont dans request.form
+    # et les photos sont dans request.files.
 
     form = request.form
-
-    # -----------------------------------------------------
-    # RÉCUPÉRATION DES INFORMATIONS
-    # -----------------------------------------------------
 
     property_type = (
         form.get("property_type") or ""
@@ -494,9 +552,9 @@ def create_property():
         type=float
     )
 
-    # =====================================================
-    # TÉLÉPHONE AUTOMATIQUE
-    # =====================================================
+    # -----------------------------------------------------
+    # TÉLÉPHONE DU COMPTE
+    # -----------------------------------------------------
 
     owner_phone = (
         g.current_user.phone or ""
@@ -515,7 +573,10 @@ def create_property():
     if transaction_type not in VALID_TRANSACTION_TYPES:
 
         return jsonify({
-            "error": "Le bien doit être 'vente' ou 'location'."
+            "error": (
+                "Le bien doit être 'vente' "
+                "ou 'location'."
+            )
         }), 400
 
     if not title:
@@ -540,54 +601,62 @@ def create_property():
 
         return jsonify({
             "error": (
-                "Votre compte ne possède pas de "
-                "numéro de téléphone. "
-                "Ajoutez votre numéro dans votre profil."
+                "Votre compte ne possède pas "
+                "de numéro de téléphone."
             )
         }), 400
 
     if price is None or price <= 0:
 
         return jsonify({
-            "error": "Le prix doit être un nombre positif."
+            "error": (
+                "Le prix doit être "
+                "un nombre positif."
+            )
         }), 400
 
+    # =====================================================
+    # PHOTOS REÇUES
+    # =====================================================
+
+    photos = request.files.getlist("images")
+
+    print("")
+    print("========================================")
+    print("MAISONPRO - NOUVELLE ANNONCE")
+    print("Propriétaire :", g.current_user.first_name)
+    print("Téléphone :", owner_phone)
+    print("NOMBRE DE PHOTOS REÇUES :", len(photos))
+    print("========================================")
+
+    for photo in photos:
+
+        if photo and photo.filename:
+
+            print(
+                "FICHIER REÇU :",
+                photo.filename
+            )
+
     # -----------------------------------------------------
-    # CRÉATION DE L'ANNONCE
+    # Création de l'annonce
     # -----------------------------------------------------
 
     prop = Property(
-
-        # Propriétaire automatique
         owner_id=g.current_user.id,
-
         property_type=property_type,
-
         transaction_type=transaction_type,
-
         title=title,
-
         description=description,
-
         price=price,
-
         city=city,
-
         commune=commune or None,
-
         quartier=quartier or None,
-
         bedrooms=bedrooms,
-
         bathrooms=bathrooms,
-
         area=area,
-
-        # Compatibilité ancienne base
         contact_phone=owner_phone,
-
         is_active=True,
-
         views_count=0
     )
 
@@ -595,35 +664,59 @@ def create_property():
 
     try:
 
+        # Obtenir l'ID de l'annonce avant
+        # d'enregistrer les photos.
+
         db.session.flush()
 
-        # -------------------------------------------------
-        # PHOTOS
-        # -------------------------------------------------
-
-        photos = request.files.getlist(
-            "photos"
+        print(
+            "ANNONCE CRÉÉE AVEC ID :",
+            prop.id
         )
 
-        _save_uploaded_photos(
+        # -------------------------------------------------
+        # Enregistrer les photos
+        # -------------------------------------------------
+
+        saved_photos = _save_uploaded_photos(
             photos,
             prop.id
         )
 
+        print(
+            "TOTAL PHOTOS SAUVEGARDÉES :",
+            len(saved_photos)
+        )
+
+        # -------------------------------------------------
+        # Validation finale
+        # -------------------------------------------------
+
         db.session.commit()
+
+        print("")
+        print("========================================")
+        print("PUBLICATION TERMINÉE")
+        print("Annonce ID :", prop.id)
+        print("Photos :", saved_photos)
+        print("========================================")
+        print("")
 
     except Exception as e:
 
         db.session.rollback()
 
+        print("")
         print(
-            "Erreur création annonce :",
-            e
+            "ERREUR CRÉATION ANNONCE :",
+            repr(e)
         )
+        print("")
 
         return jsonify({
             "error": (
-                "Impossible de créer l'annonce."
+                "Impossible de créer "
+                "l'annonce."
             )
         }), 500
 
@@ -636,7 +729,6 @@ def create_property():
 
 # =========================================================
 # MODIFIER UNE ANNONCE
-# PUT /api/properties/<property_id>
 # =========================================================
 
 @property_bp.route(
@@ -656,13 +748,8 @@ def update_property(property_id):
             "error": "Annonce introuvable."
         }), 404
 
-    # -----------------------------------------------------
-    # AUTORISATION
-    # -----------------------------------------------------
-
     if (
-        prop.owner_id !=
-        g.current_user.id
+        prop.owner_id != g.current_user.id
         and not g.current_user.is_admin
     ):
 
@@ -710,7 +797,7 @@ def update_property(property_id):
             )
 
     # -----------------------------------------------------
-    # PRIX / SURFACE
+    # PRIX
     # -----------------------------------------------------
 
     price = form.get(
@@ -731,17 +818,20 @@ def update_property(property_id):
 
         prop.price = price
 
+    # -----------------------------------------------------
+    # SURFACE
+    # -----------------------------------------------------
+
     area = form.get(
         "area",
         type=float
     )
 
     if area is not None:
-
         prop.area = area
 
     # -----------------------------------------------------
-    # CHAMBRES / SALLES DE BAIN
+    # CHAMBRES
     # -----------------------------------------------------
 
     bedrooms = form.get(
@@ -751,6 +841,10 @@ def update_property(property_id):
 
     if bedrooms is not None:
         prop.bedrooms = bedrooms
+
+    # -----------------------------------------------------
+    # SALLES DE BAIN
+    # -----------------------------------------------------
 
     bathrooms = form.get(
         "bathrooms",
@@ -764,8 +858,8 @@ def update_property(property_id):
     # TYPE DE BIEN
     # -----------------------------------------------------
 
-    new_property_type = (
-        form.get("property_type")
+    new_property_type = form.get(
+        "property_type"
     )
 
     if new_property_type:
@@ -776,10 +870,7 @@ def update_property(property_id):
             .lower()
         )
 
-        if (
-            new_property_type
-            in VALID_PROPERTY_TYPES
-        ):
+        if new_property_type in VALID_PROPERTY_TYPES:
 
             prop.property_type = (
                 new_property_type
@@ -789,8 +880,8 @@ def update_property(property_id):
     # TYPE DE TRANSACTION
     # -----------------------------------------------------
 
-    new_transaction_type = (
-        form.get("transaction_type")
+    new_transaction_type = form.get(
+        "transaction_type"
     )
 
     if new_transaction_type:
@@ -801,23 +892,15 @@ def update_property(property_id):
             .lower()
         )
 
-        if (
-            new_transaction_type
-            in VALID_TRANSACTION_TYPES
-        ):
+        if new_transaction_type in VALID_TRANSACTION_TYPES:
 
             prop.transaction_type = (
                 new_transaction_type
             )
 
-    # =====================================================
-    # TÉLÉPHONE DU PROPRIÉTAIRE
-    # =====================================================
-
-    # On ignore volontairement contact_phone envoyé
-    # par l'application.
-    #
-    # Le téléphone officiel vient toujours du compte.
+    # -----------------------------------------------------
+    # TÉLÉPHONE AUTOMATIQUE
+    # -----------------------------------------------------
 
     if g.current_user.phone:
 
@@ -825,19 +908,31 @@ def update_property(property_id):
             g.current_user.phone
         )
 
-    # -----------------------------------------------------
+    # =====================================================
     # NOUVELLES PHOTOS
-    # -----------------------------------------------------
+    # =====================================================
 
     photos = request.files.getlist(
-        "photos"
+        "images"
     )
+
+    print("")
+    print("========================================")
+    print("MODIFICATION ANNONCE :", prop.id)
+    print("NOMBRE DE NOUVELLES PHOTOS :",
+          len(photos))
+    print("========================================")
 
     if photos:
 
-        _save_uploaded_photos(
+        saved_photos = _save_uploaded_photos(
             photos,
             prop.id
+        )
+
+        print(
+            "NOUVELLES PHOTOS SAUVEGARDÉES :",
+            saved_photos
         )
 
     # -----------------------------------------------------
@@ -853,8 +948,8 @@ def update_property(property_id):
         db.session.rollback()
 
         print(
-            "Erreur modification annonce :",
-            e
+            "ERREUR MODIFICATION ANNONCE :",
+            repr(e)
         )
 
         return jsonify({
@@ -873,7 +968,6 @@ def update_property(property_id):
 
 # =========================================================
 # SUPPRIMER UNE ANNONCE
-# DELETE /api/properties/<property_id>
 # =========================================================
 
 @property_bp.route(
@@ -893,13 +987,8 @@ def delete_property(property_id):
             "error": "Annonce introuvable."
         }), 404
 
-    # -----------------------------------------------------
-    # AUTORISATION
-    # -----------------------------------------------------
-
     if (
-        prop.owner_id !=
-        g.current_user.id
+        prop.owner_id != g.current_user.id
         and not g.current_user.is_admin
     ):
 
@@ -911,7 +1000,7 @@ def delete_property(property_id):
         }), 403
 
     # -----------------------------------------------------
-    # SUPPRESSION DES PHOTOS
+    # SUPPRIMER LES FICHIERS PHOTOS
     # -----------------------------------------------------
 
     for image in prop.images:
@@ -924,31 +1013,34 @@ def delete_property(property_id):
         if os.path.exists(filepath):
 
             try:
+
                 os.remove(filepath)
+
             except Exception as e:
+
                 print(
                     "Impossible de supprimer "
                     "l'image :",
-                    e
+                    repr(e)
                 )
 
     # -----------------------------------------------------
-    # SUPPRESSION DE L'ANNONCE
+    # SUPPRIMER L'ANNONCE
     # -----------------------------------------------------
 
     try:
 
         db.session.delete(prop)
 
-        db.session.commit()
+        db.session.commit()s
 
     except Exception as e:
 
         db.session.rollback()
 
         print(
-            "Erreur suppression annonce :",
-            e
+            "ERREUR SUPPRESSION ANNONCE :",
+            repr(e)
         )
 
         return jsonify({
@@ -962,3 +1054,4 @@ def delete_property(property_id):
         "message": "Annonce supprimée.",
         "property_id": property_id
     }), 200
+```
