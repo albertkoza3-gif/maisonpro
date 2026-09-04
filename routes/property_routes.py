@@ -1,4 +1,3 @@
-```python
 import os
 import uuid
 
@@ -1032,7 +1031,7 @@ def delete_property(property_id):
 
         db.session.delete(prop)
 
-        db.session.commit()s
+        db.session.commit()
 
     except Exception as e:
 
@@ -1054,4 +1053,3 @@ def delete_property(property_id):
         "message": "Annonce supprimée.",
         "property_id": property_id
     }), 200
-```
