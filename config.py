@@ -2,24 +2,29 @@ import os
 
 
 # ============================================================
-# CHEMIN DE BASE DU PROJET
+# CHEMIN PRINCIPAL DU PROJET
 # ============================================================
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 # ============================================================
-# ADRESSE DE L'API
+# SERVEUR MAISONPRO
 # ============================================================
 
-# En local : http://127.0.0.1:5000/api
-# En production, cette variable sera fournie par le serveur.
+# Serveur en ligne Render
+DEFAULT_API_BASE_URL = "https://maisonpro.onrender.com/api"
+
+# Tu peux éventuellement définir API_BASE_URL dans les
+# variables d'environnement pour changer de serveur.
 API_BASE_URL = os.environ.get(
     "API_BASE_URL",
-    "http://127.0.0.1:5000/api"
-)
+    DEFAULT_API_BASE_URL
+).rstrip("/")
 
-SERVER_ROOT_URL = API_BASE_URL.rstrip("/").removesuffix("/api")
+
+# URL de base du serveur sans /api
+SERVER_ROOT_URL = API_BASE_URL.removesuffix("/api")
 
 
 # ============================================================
@@ -27,35 +32,60 @@ SERVER_ROOT_URL = API_BASE_URL.rstrip("/").removesuffix("/api")
 # ============================================================
 
 class Config:
-    """Configuration centrale de l'application MAISONPRO."""
 
-    # Clé secrète
+    # --------------------------------------------------------
+    # Sécurité
+    # --------------------------------------------------------
+
     SECRET_KEY = os.environ.get(
         "SECRET_KEY",
         "maisonpro-secret-key-a-changer"
     )
 
+    # --------------------------------------------------------
     # Base de données
-    #
-    # En local :
-    #     SQLite -> maisonpro.db
-    #
-    # En production :
-    #     DATABASE_URL sera fournie par l'hébergeur
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL",
-        f"sqlite:///{os.path.join(BASE_DIR, 'maisonpro.db')}"
-    )
+    # --------------------------------------------------------
+
+    # En ligne : Render pourra fournir DATABASE_URL.
+    # En local : utilisation de SQLite.
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+
+    if DATABASE_URL:
+        # Render/PostgreSQL peut parfois fournir postgres://
+        # SQLAlchemy utilise postgresql://
+        if DATABASE_URL.startswith("postgres://"):
+            DATABASE_URL = DATABASE_URL.replace(
+                "postgres://",
+                "postgresql://",
+                1
+            )
+
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    else:
+        SQLALCHEMY_DATABASE_URI = (
+            "sqlite:///"
+            + os.path.join(BASE_DIR, "maisonpro.db")
+        )
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Dossier des photos
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
-    # Taille maximale : 16 Mo
+    # --------------------------------------------------------
+    # Uploads
+    # --------------------------------------------------------
+
+    UPLOAD_FOLDER = os.path.join(
+        BASE_DIR,
+        "uploads"
+    )
+
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
 
-    # Extensions autorisées
+
+    # --------------------------------------------------------
+    # Extensions de fichiers autorisées
+    # --------------------------------------------------------
+
     ALLOWED_EXTENSIONS = {
         "png",
         "jpg",
@@ -64,5 +94,16 @@ class Config:
         "webp"
     }
 
-    # Token valable 7 jours
-    TOKEN_EXPIRATION_SECONDS = 60 * 60 * 24 * 7
+
+    # --------------------------------------------------------
+    # Token
+    # --------------------------------------------------------
+
+    TOKEN_EXPIRATION_SECONDS = 7 * 24 * 60 * 60
+
+
+# ============================================================
+# INFORMATIONS UTILISABLES PAR L'APPLICATION
+# ============================================================
+
+API_URL = API_BASE_URL
