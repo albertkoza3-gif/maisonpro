@@ -1,10 +1,6 @@
 from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.image import AsyncImage
-from kivy.uix.button import Button
-from kivy.uix.label import Label
 from kivy.metrics import dp
-from kivy.app import App
 
 
 Builder.load_string("""
@@ -70,7 +66,7 @@ Builder.load_string("""
 
     Label:
         id: details_label
-        text: "Maison • 0 chambres • 0 m²"
+        text: "Maison • 0 chambre(s) • 0 SDB • 0 m²"
         font_size: "13sp"
         color: 0.35, 0.35, 0.35, 1
         size_hint_y: None
@@ -94,57 +90,93 @@ class PropertyCard(BoxLayout):
     property_data = None
     on_select = None
 
+    # ========================================================
+    # CONFIGURATION SERVEUR
+    # ========================================================
+
+    SERVER_URL = "https://maisonpro.onrender.com"
+
+    # ========================================================
+    # CHARGER LES DONNÉES
+    # ========================================================
+
     def set_data(self, prop):
 
-        self.property_data = prop
+        self.property_data = prop or {}
 
-        # -----------------------------------------
+        # ----------------------------------------------------
         # TITRE
-        # -----------------------------------------
+        # ----------------------------------------------------
 
-        title = prop.get(
+        title = self.property_data.get(
             "title",
             "Annonce immobilière"
         )
 
         self.ids.title_label.text = str(title)
 
-        # -----------------------------------------
+        # ----------------------------------------------------
         # PRIX
-        # -----------------------------------------
+        # ----------------------------------------------------
 
-        price = prop.get("price", 0)
+        price = self.property_data.get(
+            "price",
+            0
+        )
 
         try:
+
             price_number = float(price)
-            price_text = f"{price_number:,.0f}".replace(",", " ")
+
+            price_text = (
+                f"{price_number:,.0f}"
+                .replace(",", " ")
+            )
+
             price_text = f"{price_text} FCFA"
+
         except (ValueError, TypeError):
+
             price_text = f"{price} FCFA"
 
         transaction_type = str(
-            prop.get("transaction_type", "")
-        ).lower()
+            self.property_data.get(
+                "transaction_type",
+                ""
+            )
+        ).strip().lower()
 
         if transaction_type:
-            price_text += f" • {transaction_type.capitalize()}"
+
+            price_text += (
+                f" • {transaction_type.capitalize()}"
+            )
 
         self.ids.price_label.text = price_text
 
-        # -----------------------------------------
+        # ----------------------------------------------------
         # LOCALISATION
-        # -----------------------------------------
+        # ----------------------------------------------------
 
         city = str(
-            prop.get("city", "")
+            self.property_data.get(
+                "city",
+                ""
+            )
         ).strip()
 
         commune = str(
-            prop.get("commune", "")
+            self.property_data.get(
+                "commune",
+                ""
+            )
         ).strip()
 
         quartier = str(
-            prop.get("quartier", "")
+            self.property_data.get(
+                "quartier",
+                ""
+            )
         ).strip()
 
         location_parts = []
@@ -159,59 +191,105 @@ class PropertyCard(BoxLayout):
             location_parts.append(quartier)
 
         if location_parts:
-            location = " • ".join(location_parts)
-            self.ids.location_label.text = f"📍 {location}"
-        else:
-            self.ids.location_label.text = "📍 Localisation non précisée"
 
-        # -----------------------------------------
+            location = " • ".join(
+                location_parts
+            )
+
+            self.ids.location_label.text = (
+                f"📍 {location}"
+            )
+
+        else:
+
+            self.ids.location_label.text = (
+                "📍 Localisation non précisée"
+            )
+
+        # ----------------------------------------------------
         # TYPE DE BIEN
-        # -----------------------------------------
+        # ----------------------------------------------------
 
         property_type = str(
-            prop.get("property_type", "Bien")
+            self.property_data.get(
+                "property_type",
+                "Bien"
+            )
         ).strip()
 
         if property_type:
-            property_type = property_type.capitalize()
+
+            property_type = (
+                property_type.capitalize()
+            )
+
         else:
+
             property_type = "Bien"
 
-        # -----------------------------------------
+        # ----------------------------------------------------
         # CHAMBRES
-        # -----------------------------------------
+        # ----------------------------------------------------
 
-        bedrooms = prop.get("bedrooms")
+        bedrooms = self.property_data.get(
+            "bedrooms"
+        )
 
         if bedrooms is None or bedrooms == "":
+
             bedrooms_text = "Chambres : -"
+
         else:
-            bedrooms_text = f"{bedrooms} chambre(s)"
 
-        # -----------------------------------------
+            bedrooms_text = (
+                f"{bedrooms} chambre(s)"
+            )
+
+        # ----------------------------------------------------
         # SALLES DE BAIN
-        # -----------------------------------------
+        # ----------------------------------------------------
 
-        bathrooms = prop.get("bathrooms")
+        bathrooms = self.property_data.get(
+            "bathrooms"
+        )
 
         if bathrooms is None or bathrooms == "":
+
             bathrooms_text = "SDB : -"
+
         else:
-            bathrooms_text = f"{bathrooms} SDB"
 
-        # -----------------------------------------
+            bathrooms_text = (
+                f"{bathrooms} SDB"
+            )
+
+        # ----------------------------------------------------
         # SUPERFICIE
-        # -----------------------------------------
+        # ----------------------------------------------------
 
-        area = prop.get("area")
+        area = self.property_data.get(
+            "area"
+        )
 
         if area is None or area == "":
+
             area_text = "Surface : -"
+
         else:
+
             try:
-                area_text = f"{float(area):,.0f}".replace(",", " ")
-                area_text = f"{area_text} m²"
+
+                area_text = (
+                    f"{float(area):,.0f}"
+                    .replace(",", " ")
+                )
+
+                area_text = (
+                    f"{area_text} m²"
+                )
+
             except (ValueError, TypeError):
+
                 area_text = f"{area} m²"
 
         self.ids.details_label.text = (
@@ -221,46 +299,145 @@ class PropertyCard(BoxLayout):
             f"{area_text}"
         )
 
-        # -----------------------------------------
+        # ----------------------------------------------------
         # PHOTO
-        # -----------------------------------------
+        # ----------------------------------------------------
 
-        images = prop.get("images", [])
+        self.load_property_image(
+            self.property_data
+        )
 
-        if images and isinstance(images, list):
+    # ========================================================
+    # CHARGER LA PHOTO
+    # ========================================================
 
-            image_url = images[0]
+    def load_property_image(self, prop):
 
-            if image_url:
+        images = prop.get(
+            "images",
+            []
+        )
 
-                # Si le serveur renvoie une URL complète
-                if str(image_url).startswith("http"):
-                    self.ids.property_image.source = str(
-                        image_url
-                    )
+        # ----------------------------------------------------
+        # Aucune image
+        # ----------------------------------------------------
 
-                else:
-                    # Construction de l'URL du serveur
-                    self.ids.property_image.source = (
-                        "http://127.0.0.1:5000/"
-                        + str(image_url).lstrip("/")
-                    )
+        if not images:
 
-                self.ids.property_image.reload()
+            self.ids.property_image.source = ""
+
+            return
+
+        # ----------------------------------------------------
+        # Vérifier le format
+        # ----------------------------------------------------
+
+        if not isinstance(images, list):
+
+            images = [images]
+
+        if len(images) == 0:
+
+            self.ids.property_image.source = ""
+
+            return
+
+        image_url = images[0]
+
+        if not image_url:
+
+            self.ids.property_image.source = ""
+
+            return
+
+        image_url = str(
+            image_url
+        ).strip()
+
+        # ----------------------------------------------------
+        # URL complète
+        # ----------------------------------------------------
+
+        if image_url.startswith(
+            "http://"
+        ) or image_url.startswith(
+            "https://"
+        ):
+
+            final_url = image_url
+
+        # ----------------------------------------------------
+        # Chemin /uploads/...
+        # ----------------------------------------------------
+
+        elif image_url.startswith(
+            "/uploads/"
+        ):
+
+            final_url = (
+                self.SERVER_URL
+                + image_url
+            )
+
+        # ----------------------------------------------------
+        # Chemin uploads/...
+        # ----------------------------------------------------
+
+        elif image_url.startswith(
+            "uploads/"
+        ):
+
+            final_url = (
+                self.SERVER_URL
+                + "/"
+                + image_url
+            )
+
+        # ----------------------------------------------------
+        # Nom de fichier uniquement
+        # ----------------------------------------------------
 
         else:
 
-            self.ids.property_image.source = ""
+            final_url = (
+                self.SERVER_URL
+                + "/uploads/"
+                + image_url.lstrip("/")
+            )
+
+        # ----------------------------------------------------
+        # Afficher l'image
+        # ----------------------------------------------------
+
+        print(
+            "PHOTO MAISONPRO :",
+            final_url
+        )
+
+        self.ids.property_image.source = final_url
+
+        self.ids.property_image.reload()
+
+    # ========================================================
+    # OUVRIR L'ANNONCE
+    # ========================================================
 
     def select_property(self):
 
         if not self.property_data:
+
             return
 
-        property_id = self.property_data.get("id")
+        property_id = self.property_data.get(
+            "id"
+        )
 
         if property_id is None:
+
             return
 
         if self.on_select:
-            self.on_select(property_id)
+
+            self.on_select(
+                property_id
+            )

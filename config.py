@@ -5,26 +5,28 @@ import os
 # CHEMIN PRINCIPAL DU PROJET
 # ============================================================
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+BASE_DIR = os.path.abspath(
+    os.path.dirname(__file__)
+)
 
 
 # ============================================================
 # SERVEUR MAISONPRO
 # ============================================================
 
-# Serveur en ligne Render
-DEFAULT_API_BASE_URL = "https://maisonpro.onrender.com/api"
+DEFAULT_API_BASE_URL = (
+    "https://maisonpro.onrender.com/api"
+)
 
-# Tu peux éventuellement définir API_BASE_URL dans les
-# variables d'environnement pour changer de serveur.
 API_BASE_URL = os.environ.get(
     "API_BASE_URL",
     DEFAULT_API_BASE_URL
 ).rstrip("/")
 
 
-# URL de base du serveur sans /api
-SERVER_ROOT_URL = API_BASE_URL.removesuffix("/api")
+SERVER_ROOT_URL = (
+    API_BASE_URL.removesuffix("/api")
+)
 
 
 # ============================================================
@@ -34,7 +36,7 @@ SERVER_ROOT_URL = API_BASE_URL.removesuffix("/api")
 class Config:
 
     # --------------------------------------------------------
-    # Sécurité
+    # SÉCURITÉ
     # --------------------------------------------------------
 
     SECRET_KEY = os.environ.get(
@@ -43,35 +45,44 @@ class Config:
     )
 
     # --------------------------------------------------------
-    # Base de données
+    # BASE DE DONNÉES
     # --------------------------------------------------------
 
-    # En ligne : Render pourra fournir DATABASE_URL.
-    # En local : utilisation de SQLite.
-    DATABASE_URL = os.environ.get("DATABASE_URL")
+    DATABASE_URL = os.environ.get(
+        "DATABASE_URL"
+    )
 
     if DATABASE_URL:
-        # Render/PostgreSQL peut parfois fournir postgres://
-        # SQLAlchemy utilise postgresql://
-        if DATABASE_URL.startswith("postgres://"):
+
+        if DATABASE_URL.startswith(
+            "postgres://"
+        ):
+
             DATABASE_URL = DATABASE_URL.replace(
                 "postgres://",
                 "postgresql://",
                 1
             )
 
-        SQLALCHEMY_DATABASE_URI = DATABASE_URL
+        SQLALCHEMY_DATABASE_URI = (
+            DATABASE_URL
+        )
+
     else:
+
         SQLALCHEMY_DATABASE_URI = (
             "sqlite:///"
-            + os.path.join(BASE_DIR, "maisonpro.db")
+            + os.path.join(
+                BASE_DIR,
+                "maisonpro.db"
+            )
         )
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-
     # --------------------------------------------------------
-    # Uploads
+    # ANCIEN DOSSIER UPLOAD
+    # Conservé pour compatibilité
     # --------------------------------------------------------
 
     UPLOAD_FOLDER = os.path.join(
@@ -79,11 +90,16 @@ class Config:
         "uploads"
     )
 
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+    # --------------------------------------------------------
+    # LIMITE DES FICHIERS
+    # --------------------------------------------------------
 
+    MAX_CONTENT_LENGTH = (
+        16 * 1024 * 1024
+    )
 
     # --------------------------------------------------------
-    # Extensions de fichiers autorisées
+    # EXTENSIONS AUTORISÉES
     # --------------------------------------------------------
 
     ALLOWED_EXTENSIONS = {
@@ -94,16 +110,33 @@ class Config:
         "webp"
     }
 
+    # --------------------------------------------------------
+    # CLOUDINARY
+    # --------------------------------------------------------
+
+    CLOUDINARY_CLOUD_NAME = os.environ.get(
+        "CLOUDINARY_CLOUD_NAME"
+    )
+
+    CLOUDINARY_API_KEY = os.environ.get(
+        "CLOUDINARY_API_KEY"
+    )
+
+    CLOUDINARY_API_SECRET = os.environ.get(
+        "CLOUDINARY_API_SECRET"
+    )
 
     # --------------------------------------------------------
-    # Token
+    # TOKEN
     # --------------------------------------------------------
 
-    TOKEN_EXPIRATION_SECONDS = 7 * 24 * 60 * 60
+    TOKEN_EXPIRATION_SECONDS = (
+        7 * 24 * 60 * 60
+    )
 
 
 # ============================================================
-# INFORMATIONS UTILISABLES PAR L'APPLICATION
+# INFORMATIONS POUR L'APPLICATION
 # ============================================================
 
 API_URL = API_BASE_URL
