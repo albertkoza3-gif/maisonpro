@@ -1,0 +1,57 @@
+def to_dict(self, base_url=""):
+    owner_phone = ""
+
+    if self.owner:
+        owner_phone = self.owner.phone or ""
+
+    # Sécurité : ancien numéro de l'annonce si le compte
+    # ne possède exceptionnellement pas de téléphone.
+    if not owner_phone:
+        owner_phone = self.contact_phone or ""
+
+    owner_name = ""
+
+    if self.owner:
+        owner_name = (
+            f"{self.owner.first_name} "
+            f"{self.owner.last_name}"
+        ).strip()
+
+    return {
+        "id": self.id,
+        "owner_id": self.owner_id,
+
+        # Propriétaire
+        "owner_name": owner_name,
+        "owner_phone": owner_phone,
+
+        # Annonce
+        "property_type": self.property_type,
+        "transaction_type": self.transaction_type,
+        "title": self.title,
+        "description": self.description,
+        "price": self.price,
+
+        # Localisation
+        "city": self.city,
+        "commune": self.commune,
+        "quartier": self.quartier,
+
+        # Caractéristiques
+        "bedrooms": self.bedrooms,
+        "bathrooms": self.bathrooms,
+        "area": self.area,
+
+        # Compatibilité avec l'ancien code
+        "contact_phone": owner_phone,
+
+        "is_active": self.is_active,
+        "views_count": self.views_count,
+
+        "created_at": self.created_at.isoformat(),
+
+        "images": [
+            f"{base_url}/uploads/{img.filename}"
+            for img in self.images
+        ],
+    }

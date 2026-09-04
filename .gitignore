@@ -1,0 +1,28 @@
+# Environnement virtuel
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Base de données locale
+*.db
+*.sqlite
+*.sqlite3
+
+# Configuration/secrets locaux
+.env
+.env.*
+config_backup.py
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
